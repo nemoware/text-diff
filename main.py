@@ -1,4 +1,5 @@
 import re
+import time
 from json import JSONDecodeError
 
 import base64
@@ -95,7 +96,7 @@ for key in ['result_btn', 'start_btn', 'uploader']:
     if key not in st.session_state:
         st.session_state[key] = False
 
-for key in ['main_text', 'response', 'document_type', 'diff', 'document']:
+for key in ['document_type', 'info', 'document', 'number_input']:
     if key not in st.session_state:
         st.session_state[key] = ""
 
@@ -106,9 +107,8 @@ col1, col2 = st.columns([1, 3])
 uploader = col1.file_uploader("Выберите файл", ["doc", "docx"])
 
 container_btn = col1.container()
-container = col2.container()
+container = col1.container()
 container_text = col2.container()
-container_debug = col2.container()
 
 if not server_activity_check():
     container_btn.error("Сервер выключен")
@@ -116,19 +116,28 @@ if not server_activity_check():
 if uploader:
     with st.spinner(text="Обработка документа"):
         from_parser = get_json_from_parser(uploader.getvalue(), uploader.name)
-        st.session_state.document = wrapper(from_parser)
-
+        st.session_state.document, st.session_state.info = wrapper(from_parser)
         # container_text.write(from_parser)
+        container_text.header("Текст Документа")
+        for paragraph in st.session_state.document['paragraphs']:
+            container_text.markdown('#### ' + paragraph['paragraphHeader']['text'], unsafe_allow_html=True)
+            container_text.markdown(paragraph['paragraphBody']['text'], unsafe_allow_html=True)
 
-if st.session_state.document:
-    col1.subheader("Тип документа")
-    col1.markdown('##### ' + doc_type_translation[st.session_state.document['documentType']])
+if st.session_state.info:
+    container.subheader('Дополнительная информация')
+    if st.session_state.info['price'] == 0:
+        container.write('Сумма договора не указана, ПЖ! Укажи!11!!1')
 
-    col1.subheader('Оглавление')
-    for paragraph in st.session_state.document['paragraphs']:
-        col1.write(escape_markdown(paragraph['paragraphHeader']['text']))
+    st.session_state.number_input = container.number_input(
+        value=st.session_state.info['price'] if st.session_state.info else 0,
+        label='Сумма договора, руб', step=1000
+    )
 
-    container_text.header("Текст Документа")
-    for paragraph in st.session_state.document['paragraphs']:
-        container_text.markdown('#### ' + paragraph['paragraphHeader']['text'], unsafe_allow_html=True)
-        container_text.markdown(paragraph['paragraphBody']['text'], unsafe_allow_html=True)
+    if st.session_state.info['fine'] != -1:
+        container.write('Штраф = ' + str(st.session_state.info['fine']) + 'руб')
+    container.write(int(st.session_state.number_input))
+
+    if len(st.session_state.info['errors']) > 0:
+        container.subheader('Найденные ошибки')
+        for error in st.session_state.info['errors']:
+            container.error(error['error'])

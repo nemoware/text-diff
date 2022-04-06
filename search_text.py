@@ -10,8 +10,8 @@ def wrapper(parser_response):
     document = subparagraph_format(document)
     document, price = define_attributes(document)
     document = check_warranty_periods(document)
-    document, obj = check_fines(document, price)
-    return document
+    document, errors = check_fines(document, price)
+    return document, errors
 
 
 def clean_text(document):
@@ -106,9 +106,13 @@ def check_warranty_periods(document):
     return document
 
 
-def check_fines(document, price: int = -1):
+def check_fines(document, price: int = 0):
     if price == -1:
-        return document, {'error': 'Не найдена сумма договора'}
+        return document, {'errors': [{
+            'error': 'Не найдена сумма договора',
+            'price': price,
+            'fine': 0,
+        }]}
 
     array_of_interval = [
         {
@@ -159,15 +163,15 @@ def check_fines(document, price: int = -1):
     ]
     percent = 0
     templates = {
-        10: '\n <div style="background-color:lightgreen;display: inline;">10</div> процентов цены Государственного контракта (здесь и далее при необходимости: этапа), что составляет <div style="background-color:lightgreen;display: inline;">___ руб.</div> (в случае, если цена Контракта (здесь и далее при необходимости: этапа) не превышает 3 млн. рублей).\n',
-        5: '\n <div style="background-color:lightgreen;display: inline;">5</div> процентов цены Государственного контракта, что составляет <div style="background-color:lightgreen;display: inline;">___ руб.</div> (в случае, если цена Контракта составляет от 3 млн. рублей до 50 млн. рублей (включительно).\n',
-        1: '123 <div style="background-color:lightgreen;display: inline;">1</div> процент цены Государственного контракта, что составляет <div style="background-color:lightgreen;display: inline;">___ руб.</div> (в случае, если цена Контракта составляет от 50 млн. рублей до 100 млн. рублей (включительно).\n',
-        0.5: '\n <div style="background-color:lightgreen;display: inline;">0,5</div> процента цены Государственного контракта, что составляет <div style="background-color:lightgreen;display: inline;">___ руб.</div> (в случае, если цена Контракта составляет от 100 млн. рублей до 500 млн. руб.(включительно).\n',
-        0.4: '\n <div style="background-color:lightgreen;display: inline;">0,4</div> процента цены Государственного контракта, что составляет <div style="background-color:lightgreen;display: inline;">___ руб.</div> (в случае, если цена Контракта составляет от 500 млн. рублей до 1 млрд. руб. (включительно).\n',
-        0.3: '\n <div style="background-color:lightgreen;display: inline;">0,3</div> процента цены Государственного контракта, что составляет <div style="background-color:lightgreen;display: inline;">___ руб.</div> (в случае, если цена Контракта составляет от 1 млрд. рублей до 2 млрд. руб.(включительно).\n',
-        0.25: '\n<div style="background-color:lightgreen;display: inline;">0,25</div> процента цены Государственного контракта, что составляет <div style="background-color:lightgreen;display: inline;">__ руб.</div> (в случае, если цена Контракта составляет от 2 млрд. рублей до 5 млрд. руб.(включительно).\n',
-        0.2: '\n <div style="background-color:lightgreen;display: inline;">0,2</div> процента цены Государственного контракта, что составляет <div style="background-color:lightgreen;display: inline;">___ руб.</div> (в случае, если цена Контракта составляет от 5 млрд. рублей до 10 млрд. руб.(включительно).\n',
-        0.1: '\n <div style="background-color:lightgreen;display: inline;">0,1</div> процента цены Государственного контракта, что составляет <div style="background-color:lightgreen;display: inline;">___ руб.</div> (в случае, если цена Контракта превышает 10 млрд. рублей.\n'
+        10: '\n <span style="background-color:lightgreen;display: inline;">10 процентов цены Государственного контракта (здесь и далее при необходимости: этапа), что составляет ___ руб. (в случае, если цена Контракта (здесь и далее при необходимости: этапа) не превышает 3 млн. рублей).\n</span>',
+        5: '\n <span style="background-color:lightgreen;display: inline;">5 процентов цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта составляет от 3 млн. рублей до 50 млн. рублей (включительно).\n</span>',
+        1: '\n <span  style="background-color:lightgreen;display: inline;">1 процент цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта составляет от 50 млн. рублей до 100 млн. рублей (включительно).\n</span>',
+        0.5: '\n <span style="background-color:lightgreen;display: inline;">0,5 процента цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта составляет от 100 млн. рублей до 500 млн. руб.(включительно).\n</span>',
+        0.4: '\n <span style="background-color:lightgreen;display: inline;">0,4 процента цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта составляет от 500 млн. рублей до 1 млрд. руб. (включительно).\n</span>',
+        0.3: '\n <span style="background-color:lightgreen;display: inline;">0,3 процента цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта составляет от 1 млрд. рублей до 2 млрд. руб.(включительно).\n</span>',
+        0.25: '\n<span style="background-color:lightgreen;display: inline;">0,25 процента цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта составляет от 2 млрд. рублей до 5 млрд. руб.(включительно).\n</span>',
+        0.2: '\n <span style="background-color:lightgreen;display: inline;">0,2 процента цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта составляет от 5 млрд. рублей до 10 млрд. руб.(включительно).\n</span>',
+        0.1: '\n <span style="background-color:lightgreen;display: inline;">0,1 процента цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта превышает 10 млрд. рублей.\n</span>'
     }
     fine = 0
     fine_from_doc = 0
@@ -193,10 +197,11 @@ def check_fines(document, price: int = -1):
     if fine != fine_from_doc:
         logging.error('Налог не совпадает с суммой договора')
         array_of_errors.append({
-            'error': 'Налог не совпадает с суммой договора',
-            'fine': fine,
-            'fine_from_doc': fine_from_doc
+            'error': 'Сумма штрафа не соответствует сумме договора',
         })
+# 'error': f'Штраф не совпадает с суммой договора.\n '
+# f'\nНайденный штраф в документе {fine_from_doc} руб.\n '
+# f'\nЧто должно быть {fine} руб.',
 
     percent_from_doc = re.search(r'(\d+(,\d+|)) процент', document['paragraphs'][21]['paragraphBody']['text'])
 
@@ -204,7 +209,7 @@ def check_fines(document, price: int = -1):
         logging.error('Не найдена процент')
         array_of_errors.append({'error': 'Не найдена процент'})
     else:
-        percent_from_doc_int = int(percent_from_doc.group(1).strip())
+        percent_from_doc_int = float(percent_from_doc.group(1).strip().replace(',', '.'))
         if percent == percent_from_doc_int:
             change_phrase = highlight(phrase, fine == fine_from_doc)
             change_percent = highlight(percent_from_doc)
@@ -216,12 +221,13 @@ def check_fines(document, price: int = -1):
             change_percent = highlight(percent_from_doc, False)
 
             template = templates[percent].replace('___', str(fine))
-            template = '\n'+template + "<br>" + change_percent
+            template = '\n' + template + '\n'
 
             document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody']['text'] \
                 .replace(phrase.group(0), change_phrase) \
-                .replace(percent_from_doc.group(0), template) \
-                .replace('15.2.2.', '\n15.2.2.')
+                .replace(percent_from_doc.group(0), change_percent) \
+                .replace('предусмотренных Государственным контрактом в размере:',
+                         'предусмотренных Государственным контрактом в размере:' + template)
 
     return document, {
         'price': price,
@@ -233,7 +239,7 @@ def check_fines(document, price: int = -1):
 def highlight(phrase, good: bool = True):
     return phrase.group(0).replace(
         phrase.group(1),
-        f' <div style="background-color:{"lightgreen" if good else "pink"};display: inline;">' +
+        f' <span style="background-color:{"lightgreen" if good else "pink"};display: inline;">' +
         phrase.group(1).strip() +
-        '</div> '
+        '</span> '
     )
