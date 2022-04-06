@@ -1,12 +1,12 @@
 import re
 import time
 from json import JSONDecodeError
-
+import copy
 import base64
 import json
 import requests
 import streamlit as st
-from search_text import clean_text, wrapper
+from search_text import check_fines, wrapper, clean_text, subparagraph_format
 
 parser_url = 'http://127.0.0.1:8889'
 etalon_file_name = 'etalon.docx'
@@ -96,7 +96,7 @@ for key in ['result_btn', 'start_btn', 'uploader']:
     if key not in st.session_state:
         st.session_state[key] = False
 
-for key in ['document_type', 'info', 'document', 'number_input']:
+for key in ['document_type', 'info', 'document', 'number_input', 'reserve_document']:
     if key not in st.session_state:
         st.session_state[key] = ""
 
@@ -113,31 +113,48 @@ container_text = col2.container()
 if not server_activity_check():
     container_btn.error("Сервер выключен")
 
-if uploader:
-    with st.spinner(text="Обработка документа"):
-        from_parser = get_json_from_parser(uploader.getvalue(), uploader.name)
-        st.session_state.document, st.session_state.info = wrapper(from_parser)
-        # container_text.write(from_parser)
-        container_text.header("Текст Документа")
-        for paragraph in st.session_state.document['paragraphs']:
-            container_text.markdown('#### ' + paragraph['paragraphHeader']['text'], unsafe_allow_html=True)
-            container_text.markdown(paragraph['paragraphBody']['text'], unsafe_allow_html=True)
+if uploader and container.button('Получить результат'):
+    col2.empty()
+    container_text.empty()
+    st.session_state.document = ""
+    st.session_state.info = ""
+
+    from_parser = get_json_from_parser(uploader.getvalue(), uploader.name)
+    st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(from_parser))
+    st.session_state.reserve_document = copy.deepcopy(from_parser)
+
+number_input = container.number_input(
+    value=st.session_state.info['price'] if st.session_state.info else 0,
+    label='Сумма договора, руб', step=1000
+)
+
+if container.button('Задать сумму'):
+    col2.empty()
+    container_text.empty()
+    st.session_state.document = ""
+    st.session_state.info = ""
+    # col1.write(st.session_state.reserve_document[0]['paragraphs'][21]['paragraphBody']['text'])
+    st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(st.session_state.reserve_document),
+                                                               copy.deepcopy(st.session_state.number_input))
+
+if number_input:
+    st.session_state.number_input = number_input
 
 if st.session_state.info:
-    container.subheader('Дополнительная информация')
-    if st.session_state.info['price'] == 0:
-        container.write('Сумма договора не указана, ПЖ! Укажи!11!!1')
-
-    st.session_state.number_input = container.number_input(
-        value=st.session_state.info['price'] if st.session_state.info else 0,
-        label='Сумма договора, руб', step=1000
-    )
-
-    if st.session_state.info['fine'] != -1:
+    if st.session_state.info['fine'] > 0:
         container.write('Штраф = ' + str(st.session_state.info['fine']) + 'руб')
-    container.write(int(st.session_state.number_input))
+    if st.session_state.info['fine_from_doc'] > 0:
+        container.write('Штраф найденный в документе= ' + str(st.session_state.info['fine']) + 'руб')
 
     if len(st.session_state.info['errors']) > 0:
         container.subheader('Найденные ошибки')
+        if st.session_state.info['price'] == 0:
+            container.error('Сумма договора не указана, ПЖ! Укажи!11!!1')
         for error in st.session_state.info['errors']:
             container.error(error['error'])
+
+if st.session_state.document:
+    container_text.header("Текст Документа")
+    for paragraph in st.session_state.document['paragraphs']:
+        container_text.markdown('#### ' + paragraph['paragraphHeader']['text'], unsafe_allow_html=True)
+        container_text.markdown(paragraph['paragraphBody']['text'], unsafe_allow_html=True)

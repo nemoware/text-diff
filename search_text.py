@@ -1,16 +1,14 @@
-import difflib
 import logging
 import re
-from nltk.tokenize import WhitespaceTokenizer
 
 
-def wrapper(parser_response):
+def wrapper(parser_response, set_price: int = 0):
     document = parser_response[0]
     document = clean_text(document)
     document = subparagraph_format(document)
     document, price = define_attributes(document)
     document = check_warranty_periods(document)
-    document, errors = check_fines(document, price)
+    document, errors = check_fines(document, price if set_price == 0 else set_price)
     return document, errors
 
 
@@ -70,7 +68,7 @@ def define_attributes(document):
 
 
 def check_warranty_periods(document):
-    start: str = 'срок исполнения таких обязательств не менее чем на'
+    start: str = 'срок исполнения таких обязательств '
     end: str = ', в том числе в случае его'
 
     phrase = re.search(
@@ -90,6 +88,8 @@ def check_warranty_periods(document):
         flag = False
     if any(word in date for word in good):
         flag = True
+    if not ('не менее' in date or ('более' in date and 'не' not in date)):
+        flag = False
 
     color: str = 'lightgreen;' if flag else 'pink;'
 
@@ -107,11 +107,11 @@ def check_warranty_periods(document):
 
 
 def check_fines(document, price: int = 0):
-    if price == -1:
+    # print(price)
+    if price == 0:
         return document, {'errors': [{
-            'error': 'Не найдена сумма договора',
             'price': price,
-            'fine': 0,
+            'error': 'Не найдена сумма договора',
         }]}
 
     array_of_interval = [
@@ -173,8 +173,8 @@ def check_fines(document, price: int = 0):
         0.2: '\n <span style="background-color:lightgreen;display: inline;">0,2 процента цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта составляет от 5 млрд. рублей до 10 млрд. руб.(включительно).\n</span>',
         0.1: '\n <span style="background-color:lightgreen;display: inline;">0,1 процента цены Государственного контракта, что составляет ___ руб. (в случае, если цена Контракта превышает 10 млрд. рублей.\n</span>'
     }
-    fine = 0
-    fine_from_doc = 0
+    fine = -5
+    fine_from_doc = -10
     array_of_errors = []
 
     for interval in array_of_interval:
@@ -189,36 +189,41 @@ def check_fines(document, price: int = 0):
     phrase = re.search(f'{start}(.*){end}', document['paragraphs'][21]['paragraphBody']['text'])
 
     if phrase is None:
-        logging.error('Не найдена налог')
-        array_of_errors.append({'error': 'Не найдена налог'})
+        logging.error('Не найдена штраф')
+        array_of_errors.append({'error': 'Не найдена штраф'})
     else:
         fine_from_doc = int(phrase.group(1).replace(' ', ''))
 
     if fine != fine_from_doc:
-        logging.error('Налог не совпадает с суммой договора')
+        logging.error('Сумма штрафа не соответствует сумме договора')
         array_of_errors.append({
             'error': 'Сумма штрафа не соответствует сумме договора',
         })
-# 'error': f'Штраф не совпадает с суммой договора.\n '
-# f'\nНайденный штраф в документе {fine_from_doc} руб.\n '
-# f'\nЧто должно быть {fine} руб.',
 
-    percent_from_doc = re.search(r'(\d+(,\d+|)) процент', document['paragraphs'][21]['paragraphBody']['text'])
+    percent_from_doc = re.search(r'(\d+(,\d+|)) процент(ов|а|) цены Государственного',
+                                 document['paragraphs'][21]['paragraphBody']['text'])
 
     if percent_from_doc is None:
         logging.error('Не найдена процент')
         array_of_errors.append({'error': 'Не найдена процент'})
+
+        template = templates[percent].replace('___', str(fine))
+        template = '\n' + template + '\n'
+
+        document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody']['text'] \
+            .replace('предусмотренных Государственным контрактом в размере:',
+                     'предусмотренных Государственным контрактом в размере:' + template)
     else:
         percent_from_doc_int = float(percent_from_doc.group(1).strip().replace(',', '.'))
-        if percent == percent_from_doc_int:
-            change_phrase = highlight(phrase, fine == fine_from_doc)
+        if percent == percent_from_doc_int and fine == fine_from_doc:
+            change_phrase = highlight(phrase)
             change_percent = highlight(percent_from_doc)
 
             document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody']['text'] \
                 .replace(phrase.group(0), change_phrase).replace(percent_from_doc.group(0), change_percent)
         else:
             change_phrase = highlight(phrase, fine == fine_from_doc)
-            change_percent = highlight(percent_from_doc, False)
+            change_percent = highlight(percent_from_doc, percent == percent_from_doc_int)
 
             template = templates[percent].replace('___', str(fine))
             template = '\n' + template + '\n'
@@ -228,12 +233,50 @@ def check_fines(document, price: int = 0):
                 .replace(percent_from_doc.group(0), change_percent) \
                 .replace('предусмотренных Государственным контрактом в размере:',
                          'предусмотренных Государственным контрактом в размере:' + template)
-
+    # print(document['paragraphs'][21]['paragraphBody']['text'])
     return document, {
         'price': price,
-        'fine': fine_from_doc,
+        'fine': fine,
+        'fine_from_doc': fine_from_doc,
         'errors': array_of_errors
     }
+
+
+def fine_for_each_fact(document, price: int):
+    if price == 0:
+        return document
+    templates = [
+        '1 000 руб. (в случае, если цена Государственного контракта не превышает 3 млн. рублей).',
+        '5 000 руб. (в случае, если цена Государственного контракта составляет от 3 млн. рублей до 50 млн. рублей).',
+        '10 000 руб. (в случае, если цена Государственного контракта составляет от 50 млн. рублей до 100 млн. рублей).',
+        '100 000 руб. (в случае, если цена Государственного контракта превышает 100 млн. рублей).'
+    ]
+    template: str
+    array_of_interval = [
+        {
+            'start': 0,
+            'end': 3000000
+        },
+        {
+            'start': 3000000,
+            'end': 50000000
+        },
+        {
+            'start': 50000000,
+            'end': 100000000
+        },
+        {
+            'start': 100000000,
+            'end': float('inf')
+        },
+    ]
+
+    for index, interval in enumerate(array_of_interval):
+        if interval['start'] <= price < interval['end']:
+            template = templates[index]
+
+
+    return document
 
 
 def highlight(phrase, good: bool = True):
