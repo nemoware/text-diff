@@ -1,13 +1,10 @@
-import difflib
 import re
-import string
 from json import JSONDecodeError
 
 import base64
 import json
 import requests
 import streamlit as st
-from nltk.tokenize import WhitespaceTokenizer
 from search_text import clean_text, wrapper
 
 parser_url = 'http://127.0.0.1:8889'
@@ -117,20 +114,15 @@ if not server_activity_check():
     container_btn.error("Сервер выключен")
 
 if uploader:
-    with st.spinner(text="Обработка документа"), open(etalon_file_name, "rb") as etalon_file:
-        from_parser_etalon = get_json_from_parser(etalon_file.read(), etalon_file_name)
-
+    with st.spinner(text="Обработка документа"):
         from_parser = get_json_from_parser(uploader.getvalue(), uploader.name)
-        # container_text.write(from_parser)
         st.session_state.document = wrapper(from_parser)
-        if from_parser != "" and from_parser is not None:
-            st.session_state.diff = compare(from_parser, from_parser_etalon)
-        else:
-            col1.error("Ошибка при парсинге документа")
+
+        # container_text.write(from_parser)
 
 if st.session_state.document:
     col1.subheader("Тип документа")
-    col1.markdown('##### ' + doc_type_translation[st.session_state.document_type])
+    col1.markdown('##### ' + doc_type_translation[st.session_state.document['documentType']])
 
     col1.subheader('Оглавление')
     for paragraph in st.session_state.document['paragraphs']:
