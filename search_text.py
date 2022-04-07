@@ -6,9 +6,10 @@ def wrapper(parser_response, set_price: int = 0):
     document = parser_response[0]
     document = clean_text(document)
     document = subparagraph_format(document)
-    document, price = define_attributes(document)
+    document, price = define_attributes(document, set_price if set_price > 0 else -1)
     document = check_warranty_periods(document)
-    document, errors = check_fines(document, price if set_price == 0 else set_price)
+    document, errors = check_fines(document, price if set_price <= 0 else set_price)
+    document = fine_for_each_fact(document, price if set_price <= 0 else set_price)
     return document, errors
 
 
@@ -30,7 +31,7 @@ def subparagraph_format(document):
     return document
 
 
-def define_attributes(document):
+def define_attributes(document, set_price: int = -1):
     keys: [[str]] = [
         ['казенное учреждение комбинат', 'Управления Федерального агентства'],
         ['государственным резервам по', 'федеральному округу, именуем'],
@@ -50,16 +51,26 @@ def define_attributes(document):
         if phrase is None:
             print('doesn`t find')
             return
+
         change_phrase = phrase.group(0).replace(
             phrase.group(1),
             ' <div style="background-color:lightgreen;display: inline;">' +
             phrase.group(1).strip() +
             '</div> '
         )
+
         if paragraph == 3:
             price_in_str = re.search(r'(\d+)', ''.join(phrase.group(1).strip().split()))
             if price_in_str:
                 price = int(price_in_str.group(0))
+            if set_price != -1:
+                change_phrase = phrase.group(0).replace(
+                    phrase.group(1),
+                    ' <div style="background-color:lightgreen;display: inline;">' +
+                    str(set_price).strip() + ' руб.' +
+                    '</div> '
+                )
+                price = set_price
 
         document['paragraphs'][paragraph]['paragraphBody']['text'] = document['paragraphs'][paragraph]['paragraphBody'][
             'text'].replace(phrase.group(0), change_phrase)
@@ -243,15 +254,16 @@ def check_fines(document, price: int = 0):
 
 
 def fine_for_each_fact(document, price: int):
-    if price == 0:
+    if price <= 0:
+        logging.error(f'Сумма меньше или равна нулю: {price}')
         return document
     templates = [
-        '1 000 руб. (в случае, если цена Государственного контракта не превышает 3 млн. рублей).',
-        '5 000 руб. (в случае, если цена Государственного контракта составляет от 3 млн. рублей до 50 млн. рублей).',
-        '10 000 руб. (в случае, если цена Государственного контракта составляет от 50 млн. рублей до 100 млн. рублей).',
-        '100 000 руб. (в случае, если цена Государственного контракта превышает 100 млн. рублей).'
+        r'1( | |)000 руб\. \(в случае, если цена Государственного контракта не превышает 3 млн\. рублей\)\.',
+        r'5( | )000 руб\. \(в случае, если цена Государственного контракта составляет от 3 млн\. рублей до 50 млн\. рублей\)\.',
+        r'10( | |)000 руб\. \(в случае, если цена Государственного контракта составляет от 50 млн\. рублей до 100 млн\. рублей\)\.',
+        r'100( | |)000 руб\. \(в случае, если цена Государственного контракта превышает 100 млн\. рублей\)\.'
     ]
-    template: str
+    template: str = ''
     array_of_interval = [
         {
             'start': 0,
@@ -274,9 +286,43 @@ def fine_for_each_fact(document, price: int):
     for index, interval in enumerate(array_of_interval):
         if interval['start'] <= price < interval['end']:
             template = templates[index]
+            break
 
+    if template == '':
+        logging.error('Не получилось найти шаблон по текущей сумме договора')
+        return document
 
-    return document
+    phrase = re.search(template, document['paragraphs'][21]['paragraphBody']['text'])
+    template = template.replace('( | |)', ' ').replace(r'\.', '.').replace(r'\(', '(').replace(r'\)', ')')
+
+    if phrase is not None:
+        logging.info('Фраза найдена')
+        highlight_phrase = highlight_text(phrase.group(0)) + '\n'
+        document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody'][
+            'text'].replace(phrase.group(0), highlight_phrase)
+        return document
+    else:
+        phrase = re.search(r'превышающих начальную \(максимальную\) цену контракта\):',
+                           document['paragraphs'][21]['paragraphBody']['text'])
+        bad_phrase = re.search(r'превышающих начальную \(максимальную\) цену контракта\):([\s\S]*)15\.5\.2\.',
+                               document['paragraphs'][21]['paragraphBody']['text'])
+        # print(document['paragraphs'][21]['paragraphBody']['text'])
+        if bad_phrase is None:
+            logging.error('Плохая фраза не найдена')
+            return document
+        if phrase is None:
+            logging.error('Хорошая фраза не найдена')
+            return document
+
+        highlight_bad_phrase = highlight(bad_phrase, False)
+        highlight_bad_phrase = highlight_bad_phrase.replace('<span', '<br><span').replace('</span>', '</span><br>')
+        document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody'][
+            'text'].replace(bad_phrase.group(0), highlight_bad_phrase)
+
+        current_phrase = phrase.group(0) + '<br>' + highlight_text(template)
+        document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody'][
+            'text'].replace(phrase.group(0), current_phrase)
+        return document
 
 
 def highlight(phrase, good: bool = True):
@@ -286,3 +332,7 @@ def highlight(phrase, good: bool = True):
         phrase.group(1).strip() +
         '</span> '
     )
+
+
+def highlight_text(text: str, good: bool = True):
+    return f'<span style="background-color:{"lightgreen" if good else "pink"};display: inline;">' + text + '</span>'

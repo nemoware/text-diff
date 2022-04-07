@@ -120,12 +120,13 @@ if uploader and container.button('Получить результат'):
     st.session_state.info = ""
 
     from_parser = get_json_from_parser(uploader.getvalue(), uploader.name)
+    # container_text.write(from_parser)
     st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(from_parser))
     st.session_state.reserve_document = copy.deepcopy(from_parser)
 
 number_input = container.number_input(
     value=st.session_state.info['price'] if st.session_state.info else 0,
-    label='Сумма договора, руб', step=1000
+    label='Сумма договора, руб', step=1000, min_value=0
 )
 
 if container.button('Задать сумму'):
@@ -144,7 +145,7 @@ if st.session_state.info:
     if st.session_state.info['fine'] > 0:
         container.write('Штраф = ' + str(st.session_state.info['fine']) + 'руб')
     if st.session_state.info['fine_from_doc'] > 0:
-        container.write('Штраф найденный в документе= ' + str(st.session_state.info['fine']) + 'руб')
+        container.write('Штраф найденный в документе = ' + str(st.session_state.info['fine_from_doc']) + 'руб')
 
     if len(st.session_state.info['errors']) > 0:
         container.subheader('Найденные ошибки')
