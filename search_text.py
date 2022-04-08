@@ -2,15 +2,54 @@ import logging
 import re
 
 
-def wrapper(parser_response, set_price: int = 0):
+def wrapper(parser_response, etalon, set_price: int = 0, ):
     document = parser_response[0]
+    etalon_document = etalon[0]
+
+    document = check_points(document, etalon_document)
     document = clean_text(document)
     document = subparagraph_format(document)
     document, price = define_attributes(document, set_price if set_price > 0 else -1)
     document = check_warranty_periods(document)
     document, errors = check_fines(document, price if set_price <= 0 else set_price)
     document = fine_for_each_fact(document, price if set_price <= 0 else set_price)
+
     return document, errors
+
+
+def check_points(document, etalon):
+    for index, paragraph in enumerate(document['paragraphs']):
+        paragraph_text = paragraph['paragraphHeader']['text'] + paragraph['paragraphBody']['text']
+
+        point_which_dont_match: [str] = []
+        regex: str = r'(\s+(?<!\.)\d+\.\d+\.(\d+\.|)\s+(.{10}))'
+        all_points = re.findall(regex, paragraph_text)
+        all_points = [x[0] for x in all_points]
+
+        for paragraph_from_etalon in etalon['paragraphs']:
+            paragraph_text_from_etalon = paragraph_from_etalon['paragraphHeader']['text'] + \
+                                         paragraph_from_etalon['paragraphBody']['text']
+
+            all_points_form_etalon = re.findall(regex, paragraph_text_from_etalon)
+            all_points_form_etalon = [x[0] for x in all_points_form_etalon]
+
+            flag = False
+
+            for point_from_etalon in all_points_form_etalon:
+                if point_from_etalon in all_points:
+                    flag = True
+                    break
+
+            if flag:
+                for point_from_etalon in all_points_form_etalon:
+                    if point_from_etalon not in all_points:
+                        point_which_dont_match.append(point_from_etalon)
+                break
+
+        if len(point_which_dont_match) > 0:
+            print(point_which_dont_match)
+            print('+' * 20)
+    return document
 
 
 def clean_text(document):
@@ -99,6 +138,13 @@ def check_warranty_periods(document):
         flag = False
     if any(word in date for word in good):
         flag = True
+
+    number = re.search(r'\d+', date)
+    if number is not None:
+        number = int(number.group(0))
+        if number > 31:
+            flag = True
+
     if not ('не менее' in date or ('более' in date and 'не' not in date)):
         flag = False
 

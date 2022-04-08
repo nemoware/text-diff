@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 from json import JSONDecodeError
@@ -8,8 +9,8 @@ import requests
 import streamlit as st
 from search_text import check_fines, wrapper, clean_text, subparagraph_format
 
-# parser_url = 'http://127.0.0.1:8889'
-parser_url = 'http://192.168.10.36:8889'
+parser_url = 'http://127.0.0.1:8889'
+# parser_url = 'http://192.168.10.36:8889'
 etalon_file_name = 'etalon.docx'
 
 doc_type_translation = {
@@ -110,6 +111,7 @@ uploader = col1.file_uploader("Выберите файл", ["doc", "docx"])
 container_btn = col1.container()
 container = col1.container()
 container_text = col2.container()
+etalon_file = None
 
 if not server_activity_check():
     container_btn.error("Сервер выключен")
@@ -120,10 +122,22 @@ if uploader and container.button('Получить результат'):
     st.session_state.document = ""
     st.session_state.info = ""
 
-    from_parser = get_json_from_parser(uploader.getvalue(), uploader.name)
-    # container_text.write(from_parser)
-    st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(from_parser))
-    st.session_state.reserve_document = copy.deepcopy(from_parser)
+    with st.spinner(text="Обработка документа"), open(etalon_file_name, "rb") as etalon_file:
+        # try:
+        #     etalon_file = open(etalon_file_name, 'rb')
+        from_parser = get_json_from_parser(uploader.getvalue(), uploader.name)
+        from_parser_etalon = get_json_from_parser(etalon_file.read(), etalon_file_name)
+        # container_text.write(from_parser)
+        st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(from_parser),
+                                                                   copy.deepcopy(from_parser_etalon))
+        st.session_state.reserve_document = copy.deepcopy(from_parser)
+
+    # except FileNotFoundError:
+    #     logging.error(f"File {etalon_file_name} not found.  Aborting")
+    # except OSError:
+    #     logging.error(f"OS error occurred trying to open {etalon_file_name}")
+    # except Exception as err:
+    #     logging.error(f"Unexpected error opening {etalon_file_name} is", repr(err))
 
 number_input = container.number_input(
     value=st.session_state.info['price'] if st.session_state.info else 0,
@@ -137,7 +151,8 @@ if container.button('Задать сумму'):
     st.session_state.info = ""
     # col1.write(st.session_state.reserve_document[0]['paragraphs'][21]['paragraphBody']['text'])
     st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(st.session_state.reserve_document),
-                                                               copy.deepcopy(st.session_state.number_input))
+                                                               copy.deepcopy(etalon_file),
+                                                               set_price=copy.deepcopy(st.session_state.number_input))
 
 if number_input:
     st.session_state.number_input = number_input
