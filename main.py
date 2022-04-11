@@ -98,7 +98,7 @@ for key in ['result_btn', 'start_btn', 'uploader']:
     if key not in st.session_state:
         st.session_state[key] = False
 
-for key in ['document_type', 'info', 'document', 'number_input', 'reserve_document']:
+for key in ['document_type', 'info', 'document', 'number_input', 'reserve_document', 'etalon_file']:
     if key not in st.session_state:
         st.session_state[key] = ""
 
@@ -111,7 +111,6 @@ uploader = col1.file_uploader("Выберите файл", ["doc", "docx"])
 container_btn = col1.container()
 container = col1.container()
 container_text = col2.container()
-etalon_file = None
 
 if not server_activity_check():
     container_btn.error("Сервер выключен")
@@ -123,24 +122,18 @@ if uploader and container.button('Получить результат'):
     st.session_state.info = ""
 
     with st.spinner(text="Обработка документа"), open(etalon_file_name, "rb") as etalon_file:
-        # try:
-        #     etalon_file = open(etalon_file_name, 'rb')
         from_parser = get_json_from_parser(uploader.getvalue(), uploader.name)
         from_parser_etalon = get_json_from_parser(etalon_file.read(), etalon_file_name)
-        # container_text.write(from_parser)
+        st.session_state.etalon_file = copy.deepcopy(from_parser_etalon)
+
         st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(from_parser),
                                                                    copy.deepcopy(from_parser_etalon))
-        st.session_state.reserve_document = copy.deepcopy(from_parser)
 
-    # except FileNotFoundError:
-    #     logging.error(f"File {etalon_file_name} not found.  Aborting")
-    # except OSError:
-    #     logging.error(f"OS error occurred trying to open {etalon_file_name}")
-    # except Exception as err:
-    #     logging.error(f"Unexpected error opening {etalon_file_name} is", repr(err))
+        st.session_state.reserve_document = copy.deepcopy(from_parser)
+        # print(from_parser_etalon)
 
 number_input = container.number_input(
-    value=st.session_state.info['price'] if st.session_state.info else 0,
+    value=st.session_state.info['price'] if st.session_state.info and hasattr(st.session_state.info, 'price') else 0,
     label='Сумма договора, руб', step=1000, min_value=0
 )
 
@@ -151,21 +144,21 @@ if container.button('Задать сумму'):
     st.session_state.info = ""
     # col1.write(st.session_state.reserve_document[0]['paragraphs'][21]['paragraphBody']['text'])
     st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(st.session_state.reserve_document),
-                                                               copy.deepcopy(etalon_file),
+                                                               copy.deepcopy(st.session_state.etalon_file),
                                                                set_price=copy.deepcopy(st.session_state.number_input))
 
 if number_input:
     st.session_state.number_input = number_input
 
 if st.session_state.info:
-    if st.session_state.info['fine'] > 0:
+    if hasattr(st.session_state.info, 'fine') and st.session_state.info['fine'] > 0:
         container.write('Штраф = ' + str(st.session_state.info['fine']) + 'руб')
-    if st.session_state.info['fine_from_doc'] > 0:
+    if hasattr(st.session_state.info, 'fine_from_doc') and st.session_state.info['fine_from_doc'] > 0:
         container.write('Штраф найденный в документе = ' + str(st.session_state.info['fine_from_doc']) + 'руб')
 
-    if len(st.session_state.info['errors']) > 0:
+    if hasattr(st.session_state.info, 'errors') and len(st.session_state.info['errors']) > 0:
         container.subheader('Найденные ошибки')
-        if st.session_state.info['price'] == 0:
+        if not hasattr(st.session_state.info, 'price') or st.session_state.info['price'] == 0:
             container.error('Сумма договора не указана, ПЖ! Укажи!11!!1')
         for error in st.session_state.info['errors']:
             container.error(error['error'])

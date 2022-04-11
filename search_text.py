@@ -2,7 +2,7 @@ import logging
 import re
 
 
-def wrapper(parser_response, etalon, set_price: int = 0, ):
+def wrapper(parser_response, etalon, set_price: int = 0):
     document = parser_response[0]
     etalon_document = etalon[0]
 
@@ -22,28 +22,37 @@ def check_points(document, etalon):
         paragraph_text = paragraph['paragraphHeader']['text'] + paragraph['paragraphBody']['text']
 
         point_which_dont_match: [str] = []
-        regex: str = r'(\s+(?<!\.)\d+\.\d+\.(\d+\.|)\s+(.{10}))'
+        # regex: str = r'(\s+(?<!\.)\d+\.\d+\.(\d+\.|)\s+(.{10}))'
+        # regex: str = r'((?<!\.)\d+\.\d+\.(\d+\.|)\s+)'
+        # regex: str = r'((?<!п.)\s+(?<!\.)\d+\.\d+\.(\d+\.|)\s+)'
+        regex: str = r'((?<!п.)\s+(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.{10}))'
+        group: int = 1
         all_points = re.findall(regex, paragraph_text)
-        all_points = [x[0] for x in all_points]
+        all_points = [x[group] for x in all_points]
 
         for paragraph_from_etalon in etalon['paragraphs']:
             paragraph_text_from_etalon = paragraph_from_etalon['paragraphHeader']['text'] + \
                                          paragraph_from_etalon['paragraphBody']['text']
 
             all_points_form_etalon = re.findall(regex, paragraph_text_from_etalon)
-            all_points_form_etalon = [x[0] for x in all_points_form_etalon]
+            all_points_form_etalon = [x[group] for x in all_points_form_etalon]
 
             flag = False
 
             for point_from_etalon in all_points_form_etalon:
                 if point_from_etalon in all_points:
                     flag = True
+                    # print(all_points)
+                    # print(point_from_etalon)
+                    # print(all_points_form_etalon)
                     break
 
             if flag:
                 for point_from_etalon in all_points_form_etalon:
                     if point_from_etalon not in all_points:
                         point_which_dont_match.append(point_from_etalon)
+                # if '5.2. ' in point_which_dont_match:
+                #     print(paragraph_text)
                 break
 
         if len(point_which_dont_match) > 0:
@@ -103,12 +112,20 @@ def define_attributes(document, set_price: int = -1):
             if price_in_str:
                 price = int(price_in_str.group(0))
             if set_price != -1:
-                change_phrase = phrase.group(0).replace(
-                    phrase.group(1),
-                    ' <div style="background-color:lightgreen;display: inline;">' +
-                    str(set_price).strip() + ' руб.' +
-                    '</div> '
-                )
+                key = f'{keys[index][0]} <div style="background-color:lightgreen;display: inline;">' \
+                      f'{str(set_price).strip()} руб.' \
+                      f'</div> ' \
+                      f'{keys[index][1]}'
+                change_phrase = re.sub(f'{keys[index][0]}(.*){keys[index][1]}', key, phrase.group(0))
+
+                # change_phrase = phrase.group(0).replace(
+                #     phrase.group(1),
+                #     ' <div style="background-color:lightgreen;display: inline;">' +
+                #     str(set_price).strip() + ' руб.' +
+                #     '</div> '
+                # )
+                print(change_phrase)
+                print(phrase.group(0))
                 price = set_price
 
         document['paragraphs'][paragraph]['paragraphBody']['text'] = document['paragraphs'][paragraph]['paragraphBody'][
@@ -136,14 +153,15 @@ def check_warranty_periods(document):
 
     if any(word in date for word in bad):
         flag = False
-    if any(word in date for word in good):
-        flag = True
 
     number = re.search(r'\d+', date)
     if number is not None:
         number = int(number.group(0))
         if number > 31:
             flag = True
+
+    if any(word in date for word in good):
+        flag = True
 
     if not ('не менее' in date or ('более' in date and 'не' not in date)):
         flag = False
