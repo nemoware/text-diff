@@ -9,8 +9,8 @@ import requests
 import streamlit as st
 from search_text import check_fines, wrapper, clean_text, subparagraph_format
 
-parser_url = 'http://127.0.0.1:8889'
-# parser_url = 'http://192.168.10.36:8889'
+# parser_url = 'http://127.0.0.1:8889'
+parser_url = 'http://192.168.10.36:8889'
 etalon_file_name = 'etalon.docx'
 
 doc_type_translation = {
