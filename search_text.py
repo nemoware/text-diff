@@ -9,6 +9,7 @@ def wrapper(parser_response, etalon, set_price: int = 0):
     document = check_points(document, etalon_document)
     document = clean_text(document)
     document = subparagraph_format(document)
+    print(set_price)
     document, price = define_attributes(document, set_price if set_price > 0 else -1)
     document = check_warranty_periods(document)
     document, errors = check_fines(document, price if set_price <= 0 else set_price)
@@ -87,7 +88,7 @@ def define_attributes(document, set_price: int = -1):
         [r'полный комплекс работ по строительству объекта \(далее – «работы»\):',
          r'\(далее – «Объект»\) в соответствии с проектной документацией,'],
         ['Место выполнения работ:', '.'],
-        ['Цена Государственного контракта составляет', ', включая НДС по ставке']
+        ['Цена Государственного контракта составляет', '(, включая НДС по ставке|, в том числе по)']
     ]
     price: int = 0
     for index, paragraph in enumerate([0, 0, 0, 1, 1, 3]):
@@ -97,8 +98,9 @@ def define_attributes(document, set_price: int = -1):
         )
 
         if phrase is None:
-            print('doesn`t find')
-            return
+            logging.error('doesn`t find phrase')
+            logging.error(f'{keys[index][0]}(.*){keys[index][1]}')
+            continue
 
         change_phrase = phrase.group(0).replace(
             phrase.group(1),
@@ -184,10 +186,13 @@ def check_warranty_periods(document):
 def check_fines(document, price: int = 0):
     # print(price)
     if price == 0:
-        return document, {'errors': [{
-            'price': price,
-            'error': 'Не найдена сумма договора',
-        }]}
+        return document, {
+            'price': 0,
+            'fine': 0,
+            'fine_from_doc': 0, 'errors': [{
+                'price': price,
+                'error': 'Не найдена сумма договора',
+            }]}
 
     array_of_interval = [
         {

@@ -98,9 +98,13 @@ for key in ['result_btn', 'start_btn', 'uploader']:
     if key not in st.session_state:
         st.session_state[key] = False
 
-for key in ['document_type', 'info', 'document', 'number_input', 'reserve_document', 'etalon_file']:
+for key in ['document_type', 'document', 'number_input', 'reserve_document', 'etalon_file']:
     if key not in st.session_state:
         st.session_state[key] = ""
+
+for key in ['info']:
+    if key not in st.session_state:
+        st.session_state[key] = {}
 
 st.set_page_config(layout="wide")
 
@@ -133,7 +137,7 @@ if uploader and container.button('Получить результат'):
         # print(from_parser_etalon)
 
 number_input = container.number_input(
-    value=st.session_state.info['price'] if st.session_state.info and hasattr(st.session_state.info, 'price') else 0,
+    value=st.session_state.info['price'] if st.session_state.info  else 0,
     label='Сумма договора, руб', step=1000, min_value=0
 )
 
@@ -151,14 +155,14 @@ if number_input:
     st.session_state.number_input = number_input
 
 if st.session_state.info:
-    if hasattr(st.session_state.info, 'fine') and st.session_state.info['fine'] > 0:
+    if st.session_state.info['fine'] > 0:
         container.write('Штраф = ' + str(st.session_state.info['fine']) + 'руб')
-    if hasattr(st.session_state.info, 'fine_from_doc') and st.session_state.info['fine_from_doc'] > 0:
+    if st.session_state.info['fine_from_doc'] > 0:
         container.write('Штраф найденный в документе = ' + str(st.session_state.info['fine_from_doc']) + 'руб')
 
-    if hasattr(st.session_state.info, 'errors') and len(st.session_state.info['errors']) > 0:
+    if len(st.session_state.info['errors']) > 0:
         container.subheader('Найденные ошибки')
-        if not hasattr(st.session_state.info, 'price') or st.session_state.info['price'] == 0:
+        if st.session_state.info['price'] == 0:
             container.error('Сумма договора не указана, ПЖ! Укажи!11!!1')
         for error in st.session_state.info['errors']:
             container.error(error['error'])
