@@ -9,16 +9,16 @@ def wrapper(parser_response, etalon, set_price: int = 0):
     document = check_points(document, etalon_document)
     document = clean_text(document)
     document = subparagraph_format(document)
-    print(set_price)
     document, price = define_attributes(document, set_price if set_price > 0 else -1)
     document = check_warranty_periods(document)
-    document, errors = check_fines(document, price if set_price <= 0 else set_price)
-    document = fine_for_each_fact(document, price if set_price <= 0 else set_price)
+    document, info = check_fines(document, price if set_price <= 0 else set_price)
+    document, info = fine_for_each_fact(document, price if set_price <= 0 else set_price, info)
 
-    return document, errors
+    return document, info
 
 
 def check_points(document, etalon):
+    exclude = ['1.1.', '1.5.', '2.1.', '3.1.', '7.1.1.', '1.1.', '1.1.', ]
     for index, paragraph in enumerate(document['paragraphs']):
         paragraph_text = paragraph['paragraphHeader']['text'] + paragraph['paragraphBody']['text']
 
@@ -88,7 +88,7 @@ def define_attributes(document, set_price: int = -1):
         [r'полный комплекс работ по строительству объекта \(далее – «работы»\):',
          r'\(далее – «Объект»\) в соответствии с проектной документацией,'],
         ['Место выполнения работ:', '.'],
-        ['Цена Государственного контракта составляет', '(, включая НДС по ставке|, в том числе по)']
+        ['Цена Государственного контракта составляет', ', в том числе по']
     ]
     price: int = 0
     for index, paragraph in enumerate([0, 0, 0, 1, 1, 3]):
@@ -119,15 +119,6 @@ def define_attributes(document, set_price: int = -1):
                       f'</div> ' \
                       f'{keys[index][1]}'
                 change_phrase = re.sub(f'{keys[index][0]}(.*){keys[index][1]}', key, phrase.group(0))
-
-                # change_phrase = phrase.group(0).replace(
-                #     phrase.group(1),
-                #     ' <div style="background-color:lightgreen;display: inline;">' +
-                #     str(set_price).strip() + ' руб.' +
-                #     '</div> '
-                # )
-                print(change_phrase)
-                print(phrase.group(0))
                 price = set_price
 
         document['paragraphs'][paragraph]['paragraphBody']['text'] = document['paragraphs'][paragraph]['paragraphBody'][
@@ -189,10 +180,10 @@ def check_fines(document, price: int = 0):
         return document, {
             'price': 0,
             'fine': 0,
-            'fine_from_doc': 0, 'errors': [{
-                'price': price,
-                'error': 'Не найдена сумма договора',
-            }]}
+            'fine_from_doc': 0,
+            'template': [],
+            'errors': []
+        }
 
     array_of_interval = [
         {
@@ -269,23 +260,23 @@ def check_fines(document, price: int = 0):
     phrase = re.search(f'{start}(.*){end}', document['paragraphs'][21]['paragraphBody']['text'])
 
     if phrase is None:
-        logging.error('Не найдена штраф')
-        array_of_errors.append({'error': 'Не найдена штраф'})
+        logging.error('Не найден штраф в пункте 15.2.1')
+        array_of_errors.append({'error': 'Не найден штраф в пункте 15.2.1'})
     else:
         fine_from_doc = int(phrase.group(1).replace(' ', ''))
 
-    if fine != fine_from_doc:
-        logging.error('Сумма штрафа не соответствует сумме договора')
-        array_of_errors.append({
-            'error': 'Сумма штрафа не соответствует сумме договора',
-        })
+        if fine != fine_from_doc:
+            logging.error('Не правильно указан штраф в пункте 15.2.1')
+            array_of_errors.append({
+                'error': 'Не правильно указан штраф в пункте 15.2.1',
+            })
 
     percent_from_doc = re.search(r'(\d+(,\d+|)) процент(ов|а|) цены Государственного',
                                  document['paragraphs'][21]['paragraphBody']['text'])
-
+    template: str = ''
     if percent_from_doc is None:
-        logging.error('Не найдена процент')
-        array_of_errors.append({'error': 'Не найдена процент'})
+        logging.error('Не найден процент')
+        array_of_errors.append({'error': 'Не найден процент в пункте 15.2.1'})
 
         template = templates[percent].replace('___', str(fine))
         template = '\n' + template + '\n'
@@ -299,9 +290,13 @@ def check_fines(document, price: int = 0):
             change_phrase = highlight(phrase)
             change_percent = highlight(percent_from_doc)
 
+            template = templates[percent].replace('___', str(fine))
+
             document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody']['text'] \
                 .replace(phrase.group(0), change_phrase).replace(percent_from_doc.group(0), change_percent)
         else:
+            if percent != percent_from_doc_int:
+                array_of_errors.append({'error': 'Не правильно указан процент в пункте 15.2.1'})
             change_phrase = highlight(phrase, fine == fine_from_doc)
             change_percent = highlight(percent_from_doc, percent == percent_from_doc_int)
 
@@ -313,22 +308,23 @@ def check_fines(document, price: int = 0):
                 .replace(percent_from_doc.group(0), change_percent) \
                 .replace('предусмотренных Государственным контрактом в размере:',
                          'предусмотренных Государственным контрактом в размере:' + template)
-    # print(document['paragraphs'][21]['paragraphBody']['text'])
+
     return document, {
         'price': price,
         'fine': fine,
         'fine_from_doc': fine_from_doc,
+        'template': ['[Пункт 15.2.1](#15)' + template],
         'errors': array_of_errors
     }
 
 
-def fine_for_each_fact(document, price: int):
+def fine_for_each_fact(document, price: int, info):
     if price <= 0:
         logging.error(f'Сумма меньше или равна нулю: {price}')
-        return document
+        return document, info
     templates = [
         r'1( | |)000 руб\. \(в случае, если цена Государственного контракта не превышает 3 млн\. рублей\)\.',
-        r'5( | )000 руб\. \(в случае, если цена Государственного контракта составляет от 3 млн\. рублей до 50 млн\. рублей\)\.',
+        r'5( | |)000 руб\. \(в случае, если цена Государственного контракта составляет от 3 млн\. рублей до 50 млн\. рублей\)\.',
         r'10( | |)000 руб\. \(в случае, если цена Государственного контракта составляет от 50 млн\. рублей до 100 млн\. рублей\)\.',
         r'100( | |)000 руб\. \(в случае, если цена Государственного контракта превышает 100 млн\. рублей\)\.'
     ]
@@ -358,8 +354,8 @@ def fine_for_each_fact(document, price: int):
             break
 
     if template == '':
-        logging.error('Не получилось найти шаблон по текущей сумме договора')
-        return document
+        logging.error('Не удалось найти штраф в пункте 15.5.1')
+        return document, info
 
     phrase = re.search(template, document['paragraphs'][21]['paragraphBody']['text'])
     template = template.replace('( | |)', ' ').replace(r'\.', '.').replace(r'\(', '(').replace(r'\)', ')')
@@ -369,19 +365,21 @@ def fine_for_each_fact(document, price: int):
         highlight_phrase = highlight_text(phrase.group(0)) + '\n'
         document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody'][
             'text'].replace(phrase.group(0), highlight_phrase)
-        return document
+        return document, info['template'].append(highlight_phrase)
     else:
         phrase = re.search(r'превышающих начальную \(максимальную\) цену контракта\):',
                            document['paragraphs'][21]['paragraphBody']['text'])
         bad_phrase = re.search(r'превышающих начальную \(максимальную\) цену контракта\):([\s\S]*)15\.5\.2\.',
                                document['paragraphs'][21]['paragraphBody']['text'])
-        # print(document['paragraphs'][21]['paragraphBody']['text'])
+
         if bad_phrase is None:
             logging.error('Плохая фраза не найдена')
-            return document
+            return document, info
         if phrase is None:
             logging.error('Хорошая фраза не найдена')
-            return document
+            return document, info
+
+        info['errors'].append({'error': 'Не правильно указан штраф в пункте 15.5.1'})
 
         highlight_bad_phrase = highlight(bad_phrase, False)
         highlight_bad_phrase = highlight_bad_phrase.replace('<span', '<br><span').replace('</span>', '</span><br>')
@@ -391,7 +389,10 @@ def fine_for_each_fact(document, price: int):
         current_phrase = phrase.group(0) + '<br>' + highlight_text(template)
         document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody'][
             'text'].replace(phrase.group(0), current_phrase)
-        return document
+
+        info['template'].append('[Пункт 15.5.1](#15) <br>' + highlight_text(template))
+        # info['template'].append(highlight_text(bad_phrase.group(1), False))
+        return document, info
 
 
 def highlight(phrase, good: bool = True):
