@@ -4,9 +4,11 @@ import re
 
 def wrapper(parser_response, etalon, set_price: int = 0):
     document = parser_response[0]
-    # etalon_document = etalon[0]
+    etalon_document = etalon[0]
+    # etalon_document = clean_text(etalon_document)
 
-    # document = check_points(document, etalon_document)
+    document = check_points(document, etalon_document)
+
     document = clean_text(document)
     document = subparagraph_format(document)
     document, price = define_attributes(document, set_price if set_price > 0 else -1)
@@ -18,85 +20,113 @@ def wrapper(parser_response, etalon, set_price: int = 0):
 
 
 def check_points(document, etalon):
-    exclude = ['1.1.', '1.3.', '1.5.', '2.1.', '3.1.', '7.1.1.', '3.5.1.', '15.2.1.', '15.5.1.']
+    exclude = ['1.1.', '1.3.', '1.5.', '3.1.', '7.1.1.', '3.5.1.', '15.2.1.', '15.5.1.']
+    list_of_bad_points = []
     for index, paragraph in enumerate(document['paragraphs'][:26]):
-        paragraph_text = paragraph['paragraphBody']['text']
         paragraph_text_from_etalon = etalon['paragraphs'][index]['paragraphBody']['text']
 
         # regex: str = r'(\s+(?<!\.)\d+\.\d+\.(\d+\.|)\s+(.{10}))'
         # regex: str = r'((?<!\.)\d+\.\d+\.(\d+\.|)\s+)'
         # regex: str = r'((?<!п.)\s+(?<!\.)\d+\.\d+\.(\d+\.|)\s+)'
-        regex: str = r'((?<!п.)(\s+|^)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.{10}))'  # Эволюция выражения =D
+
+        regex_global: str = r'((?<!п\.)(\s+|^)(\d+\.\d+\.(\d+\.|))\s+(.{10}))'  # Эволюция выражения =D
+
         # regex: str = r'((?<!п.)\s+(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*)(?<!п.)\s+(?<!\.)(\d+\.\d+\.(\d+\.|)))'
         # r'(?=((?<!п.)(\s+|)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*?)(?<!п.)\s+(?<!\.)(\d+\.\d+\.(\d+\.|))\s+))'
         # r'(?=((?<!п.)(\s+|\S|^)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*?)(?<!п.)(\S+|\s+)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+))',
         # r'(?=((?<!п.)(\s+|^)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*?)(?<!п.)(\S+|\s+)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+))',
+        # r'(?=((?<!п.)(\s+|^)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*?)(?<!п.)(|\s+)(?<!\.)(\d+\.\d+\.(\d+\.|)|\.)\s+))',
 
-        # regex = re.compile(
-        #     r'(?=((?<!п.)(\s+|^)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*?)(?<!п.)(|\s+)(?<!\.)(\d+\.\d+\.(\d+\.|)|\.)\s+))',
-        #     re.S
-        # )
-        group: int = 0
-        point_which_dont_match = []
-
-        all_points = re.findall(regex, paragraph_text)
-        all_points = [x[group] for x in all_points if x[2] not in exclude]
-        all_points_form_etalon = re.findall(regex, paragraph_text_from_etalon)
-        all_points_form_etalon = [x[group] for x in all_points_form_etalon if x[2] not in exclude]
-
+        all_points_form_etalon = re.findall(regex_global, paragraph_text_from_etalon, re.S)
         for index1, etalon_text in enumerate(all_points_form_etalon):
-            if etalon_text not in all_points:
-                print(etalon_text)
-                print(all_points[index1])
+            paragraph_text = document['paragraphs'][index]['paragraphBody']['text']
+            all_points = re.findall(regex_global, paragraph_text, re.S)
 
-        # all_points = regex.findall(paragraph_text, re.S)
-        # all_points = [x[2] + x[group] + x[6] for x in all_points if x[2] not in exclude]
-        # all_points_text = []
-        # for i in all_points:
-        #     if i not in all_points_text:
-        #         all_points_text.append(i)
-        # # all_points_text = list(set(all_points_text))
-        # all_points_digit = [x[2] for x in all_points if x[2] not in exclude]
-        #
-        # all_points_form_etalon = regex.findall(paragraph_text_from_etalon, re.S)
-        # all_points_form_etalon = [x[2] + x[group] + x[6] for x in all_points_form_etalon if x[2] not in exclude]
-        # all_points_form_etalon_text = []
-        # for i in all_points_form_etalon:
-        #     if i not in all_points_form_etalon_text:
-        #         all_points_form_etalon_text.append(i)
-        # all_points_form_etalon_text = list(set(all_points_form_etalon_text))
-        # all_points_form_etalon_digit = [x[2] for x in all_points_form_etalon if x[2] not in exclude]
+            if etalon_text[0].strip() not in [x[0].strip() for x in all_points] and etalon_text[2] not in exclude:
+                if index1 == 0:
+                    print('first')
+                    regex = fr'([\S\s]*)({all_points[index1][0]})'
+                    good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))({all_points[index1][0]})',
+                                               paragraph_text_from_etalon)
+                    if etalon_text[2] == all_points[index1][2]:
+                        regex = fr'([\S\s]*)({all_points[index1 + 1][0]})'
+                        good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))({all_points[index1 + 1][0]})',
+                                                   paragraph_text_from_etalon)
+                        print(147)
 
-        # for etalon_text in all_points_form_etalon_text:
-        #     if etalon_text not in all_points_text:
-        #         print(etalon_text)
+                    bad_paragraph = re.search(regex, paragraph_text)
+                    list_of_bad_points.append({
+                        'good': good_paragraph.group(1),
+                        'bad': highlight_text(good_paragraph.group(1)) + '<br>' + '<br>' + highlight_text(
+                            bad_paragraph.group(1),
+                            False)
+                    })
 
-        # for etalon_text in all_points_form_etalon_text:
-        #     print(etalon_text)
+                    document['paragraphs'][index]['paragraphBody']['text'] = \
+                        str(document['paragraphs'][index]['paragraphBody']['text']) \
+                            .replace(bad_paragraph.group(0), good_paragraph.group(1) + bad_paragraph.group(0))
+                if 0 < index1 < len(all_points_form_etalon) - 1:
+                    print('all')
+                    regex2 = fr'(({all_points[index1 - 1][0]})([\S\s]*)){all_points[index1][0]}'
 
-        # for paragraph_from_etalon in etalon['paragraphs']:
-        #     paragraph_text_from_etalon = paragraph_from_etalon['paragraphHeader']['text'] + \
-        #                                  paragraph_from_etalon['paragraphBody']['text']
-        #
-        #     all_points_form_etalon = re.findall(regex, paragraph_text_from_etalon)
-        #     all_points_form_etalon = [x[group] for x in all_points_form_etalon]
-        #
-        #     flag = False
-        #
-        #     for point_from_etalon in all_points_form_etalon:
-        #         if point_from_etalon in all_points:
-        #             flag = True
-        #             break
-        #
-        #     if flag:
-        #         for point_from_etalon in all_points_form_etalon:
-        #             if point_from_etalon not in all_points:
-        #                 point_which_dont_match.append(point_from_etalon)
-        #         break
+                    good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))({all_points[index1][0]})',
+                                               paragraph_text_from_etalon)
+                    if etalon_text[2] == all_points[index1][2]:
+                        regex2 = fr'(({all_points[index1][0]})([\S\s]*))({all_points[index1 + 1][0]})'
+                        good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))({all_points[index1 + 1][0]})',
+                                                   paragraph_text_from_etalon)
+                    bad_paragraph = re.search(regex2, paragraph_text)
+                    if etalon_text[2] == all_points[index1][2]:
+                        list_of_bad_points.append({
+                            'good': bad_paragraph.group(1) + good_paragraph.group(1),
+                            'bad': highlight_text(good_paragraph.group(1)) +
+                                   highlight_text(bad_paragraph.group(1), False)
+                        })
+                        document['paragraphs'][index]['paragraphBody']['text'] = \
+                            str(document['paragraphs'][index]['paragraphBody']['text']) \
+                                .replace(bad_paragraph.group(1), bad_paragraph.group(1) + good_paragraph.group(1))
+                    else:
+                        list_of_bad_points.append({
+                            'good': bad_paragraph.group(1) + good_paragraph.group(1),
+                            'bad': bad_paragraph.group(1) + highlight_text(good_paragraph.group(1))
+                        })
 
-        # if len(point_which_dont_match) > 0:
-        #     print(point_which_dont_match)
-        #     print('+' * 20)
+                        document['paragraphs'][index]['paragraphBody']['text'] = \
+                            str(document['paragraphs'][index]['paragraphBody']['text']) \
+                                .replace(bad_paragraph.group(1), bad_paragraph.group(1) + good_paragraph.group(1))
+
+                if index1 == len(all_points_form_etalon) - 1:
+                    print('Last')
+                    good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))$', paragraph_text_from_etalon)
+                    regex3 = fr'({all_points[index1 - 1][0]})([\S\s]*)$'
+
+                    if index1 < len(all_points) and etalon_text[2] == all_points[index1][2]:
+                        regex3 = fr'({all_points[index1][0]})([\S\s]*)$'
+                        bad_paragraph = re.search(regex3, paragraph_text)
+
+                        list_of_bad_points.append({
+                            'good': good_paragraph.group(),
+                            'bad': highlight_text(good_paragraph.group()) + highlight_text(bad_paragraph.group(), False)
+                        })
+
+                        document['paragraphs'][index]['paragraphBody']['text'] = \
+                            str(document['paragraphs'][index]['paragraphBody']['text']) \
+                                .replace(bad_paragraph.group(), good_paragraph.group())
+                    else:
+                        bad_paragraph = re.search(regex3, paragraph_text)
+                        list_of_bad_points.append({
+                            'good': bad_paragraph.group() + good_paragraph.group(),
+                            'bad': bad_paragraph.group() + highlight_text(good_paragraph.group())
+                        })
+
+                        document['paragraphs'][index]['paragraphBody']['text'] = \
+                            str(document['paragraphs'][index]['paragraphBody']['text']) \
+                                .replace(bad_paragraph.group(), bad_paragraph.group() + good_paragraph.group())
+
+        for bad_point in list_of_bad_points:
+            document['paragraphs'][index]['paragraphBody']['text'] = \
+                str(document['paragraphs'][index]['paragraphBody']['text']).replace(bad_point['good'], bad_point['bad'])
+
     return document
 
 
@@ -108,10 +138,10 @@ def clean_text(document):
 
 
 def subparagraph_format(document):
-    regex = re.compile(r'(\d+\.\d+\.(\d+\.|)\s)', re.S)
+    regex = re.compile(r'(?<!п.)(\s+|^)(\d+\.\d+\.(\d+\.|)\s)', re.S)
     for index, paragraph in enumerate(document.get('paragraphs', [])):
         document['paragraphs'][index]['paragraphBody']['text'] = regex.sub(
-            lambda m: "\n" + m.group() + "\n",
+            lambda m: "<br>" + "<br>" + m.group(),
             paragraph['paragraphBody']['text']
         )
 
@@ -142,9 +172,9 @@ def define_attributes(document, set_price: int = -1):
 
         change_phrase = phrase.group(0).replace(
             phrase.group(1),
-            ' <div style="background-color:lightgreen;display: inline;">' +
+            ' <span style="background-color:moccasin;display: inline;">' +
             phrase.group(1).strip() +
-            '</div> '
+            '</span> '
         )
 
         if paragraph == 3:
@@ -152,9 +182,9 @@ def define_attributes(document, set_price: int = -1):
             if price_in_str:
                 price = int(price_in_str.group(0))
             if set_price != -1:
-                key = f'{keys[index][0]} <div style="background-color:lightgreen;display: inline;">' \
+                key = f'{keys[index][0]} <span style="background-color:moccasin;display: inline;">' \
                       f'{str(set_price).strip()} руб.' \
-                      f'</div> ' \
+                      f'</span> ' \
                       f'{keys[index][1]}'
                 change_phrase = re.sub(f'{keys[index][0]}(.*){keys[index][1]}', key, phrase.group(0))
                 price = set_price
@@ -188,7 +218,7 @@ def check_warranty_periods(document):
     number = re.search(r'\d+', date)
     if number is not None:
         number = int(number.group(0))
-        if number > 31:
+        if number > 29:
             flag = True
 
     if any(word in date for word in good):
@@ -445,4 +475,4 @@ def highlight(phrase, good: bool = True):
 
 
 def highlight_text(text: str, good: bool = True):
-    return f'<span style="background-color:{"lightgreen" if good else "pink"};display: inline;">' + text + '</span>'
+    return f'<span style="background-color:{"lightgreen" if good else "pink"};display: inline;"> ' + text + ' </span>'
