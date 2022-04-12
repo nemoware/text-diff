@@ -213,7 +213,6 @@ def check_warranty_periods(document):
 
 
 def check_fines(document, price: int = 0):
-    # print(price)
     if price == 0:
         return document, {
             'price': 0,
@@ -348,7 +347,7 @@ def check_fines(document, price: int = 0):
                 .replace(percent_from_doc.group(0), change_percent) \
                 .replace('предусмотренных Государственным контрактом в размере:',
                          'предусмотренных Государственным контрактом в размере:' + template)
-
+    print(price)
     return document, {
         'price': price,
         'fine': fine,
@@ -405,7 +404,8 @@ def fine_for_each_fact(document, price: int, info):
         highlight_phrase = highlight_text(phrase.group(0)) + '\n'
         document['paragraphs'][21]['paragraphBody']['text'] = document['paragraphs'][21]['paragraphBody'][
             'text'].replace(phrase.group(0), highlight_phrase)
-        return document, info['template'].append(highlight_phrase)
+        info['template'].append('[Пункт 15.5.1](#15) <br>' + highlight_phrase)
+        return document, info
     else:
         phrase = re.search(r'превышающих начальную \(максимальную\) цену контракта\):',
                            document['paragraphs'][21]['paragraphBody']['text'])
