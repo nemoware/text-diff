@@ -4,9 +4,9 @@ import re
 
 def wrapper(parser_response, etalon, set_price: int = 0):
     document = parser_response[0]
-    etalon_document = etalon[0]
+    # etalon_document = etalon[0]
 
-    document = check_points(document, etalon_document)
+    # document = check_points(document, etalon_document)
     document = clean_text(document)
     document = subparagraph_format(document)
     document, price = define_attributes(document, set_price if set_price > 0 else -1)
