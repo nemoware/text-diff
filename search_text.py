@@ -347,7 +347,7 @@ def check_fines(document, price: int = 0):
                 .replace(percent_from_doc.group(0), change_percent) \
                 .replace('предусмотренных Государственным контрактом в размере:',
                          'предусмотренных Государственным контрактом в размере:' + template)
-    print(price)
+    # print(price)
     return document, {
         'price': price,
         'fine': fine,

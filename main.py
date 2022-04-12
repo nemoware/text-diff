@@ -13,21 +13,6 @@ from search_text import check_fines, wrapper, clean_text, subparagraph_format
 parser_url = 'http://192.168.10.36:8889'
 etalon_file_name = 'etalon.docx'
 
-doc_type_translation = {
-    'UNKNOWN': 'Входящий документ',
-    'CONTRACT': 'Договор',
-    'CHARTER': 'Устав',
-    'PROTOCOL': 'Протокол',
-    'REGULATION': 'Положение',
-    'CHARITY_POLICY': 'Политика благотворительности',
-    'ORDER': 'Приказ',
-    'WORK_PLAN': 'План работ',
-    'SUPPLEMENTARY_AGREEMENT': 'Дополнительное соглашение',
-    'ANNEX': 'Приложение',
-    'AGREEMENT': 'Соглашение',
-    'POWER_OF_ATTORNEY': 'Доверенность',
-}
-
 
 def get_json_from_parser(doc, filename):
     result = ""
@@ -94,11 +79,11 @@ def escape_markdown(text: str) -> str:
     return reparse
 
 
-for key in ['result_btn', 'start_btn', 'uploader']:
+for key in ['start_btn']:
     if key not in st.session_state:
         st.session_state[key] = False
 
-for key in ['document_type', 'document', 'number_input', 'reserve_document', 'etalon_file']:
+for key in ['document', 'reserve_document', 'etalon_file']:
     if key not in st.session_state:
         st.session_state[key] = ""
 
@@ -106,21 +91,36 @@ for key in ['info']:
     if key not in st.session_state:
         st.session_state[key] = {}
 
+for key in ['price', 'number_input']:
+    if key not in st.session_state:
+        st.session_state[key] = 0
+
 st.set_page_config(layout="wide")
 
-col1, col2 = st.columns([1, 3])
+# col1, col2 = st.columns([1, 3])
 
-uploader = col1.file_uploader("Выберите файл", ["doc", "docx"])
+st.markdown(f'''
+    <style>
+        section[data-testid="stSidebar"] .css-ng1t4o {{width: 40rem;}}
+        section[data-testid="stSidebar"] .css-1d391kg {{width: 40rem;}}
+    </style>
+''', unsafe_allow_html=True)
 
-container_btn = col1.container()
-container = col1.container()
-container_text = col2.container()
+uploader = st.sidebar.file_uploader("Выберите файл", ["doc", "docx"])
 
-if not server_activity_check():
-    container_btn.error("Сервер выключен")
+# container_btn = st.container()
+# container = col1.container()
+# container = st.sidebar()
 
-if uploader and container.button('Получить результат'):
-    col2.empty()
+container_text = st.container()
+number_input = None
+button = None
+
+# if not server_activity_check():
+#     container_btn.error("Сервер выключен")
+
+if uploader and st.sidebar.button('Получить результат'):
+    # col2.empty()
     container_text.empty()
     st.session_state.document = ""
     st.session_state.info = ""
@@ -129,20 +129,29 @@ if uploader and container.button('Получить результат'):
         from_parser = get_json_from_parser(uploader.getvalue(), uploader.name)
         from_parser_etalon = get_json_from_parser(etalon_file.read(), etalon_file_name)
         st.session_state.etalon_file = copy.deepcopy(from_parser_etalon)
-
+        st.session_state.start_btn = False
         st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(from_parser),
                                                                    copy.deepcopy(from_parser_etalon))
-
+        # container_text.write(from_parser_etalon)
         st.session_state.reserve_document = copy.deepcopy(from_parser)
-        # print(from_parser_etalon)
 
-number_input = container.number_input(
-    value=st.session_state.info['price'] if st.session_state.info != {} else 0,
-    label='Сумма договора, руб', step=1000, min_value=0
-)
+        if st.session_state.info != {}:
+            st.session_state.price = st.session_state.info['price']
+        else:
+            st.session_state.price = 0
 
-if container.button('Задать сумму') and st.session_state.number_input != "":
-    col2.empty()
+if st.session_state.document:
+    number_input = st.sidebar.number_input(
+        value=st.session_state.price,
+        label='Сумма договора, руб', min_value=0, step=1000, key='price'
+    )
+    button = st.sidebar.button('Задать сумму')
+
+if number_input:
+    st.session_state.number_input = number_input
+
+if button and number_input:
+    # col2.empty()
     container_text.empty()
     st.session_state.document = ""
     st.session_state.info = ""
@@ -150,30 +159,29 @@ if container.button('Задать сумму') and st.session_state.number_input
     st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(st.session_state.reserve_document),
                                                                copy.deepcopy(st.session_state.etalon_file),
                                                                set_price=copy.deepcopy(st.session_state.number_input))
-
-if number_input:
-    st.session_state.number_input = number_input
+    st.session_state.start_btn = True
+    # print(st.session_state.info)
 
 if st.session_state.info:
     # if st.session_state.info['fine'] > 0:
-    #     container.write('Штраф = ' + str(st.session_state.info['fine']) + 'руб')
+    #     st.sidebar.write('Штраф = ' + str(st.session_state.info['fine']) + 'руб')
     # if st.session_state.info['fine_from_doc'] > 0:
-    #     container.write('Штраф найденный в документе = ' + str(st.session_state.info['fine_from_doc']) + 'руб')
+    #     st.sidebar.write('Штраф найденный в документе = ' + str(st.session_state.info['fine_from_doc']) + 'руб')
     if st.session_state.info['price'] == 0:
-        container.subheader('Найденные ошибки')
-        container.error('Не найдена сумма договора')
+        st.sidebar.subheader('Найденные ошибки')
+        st.sidebar.error('Не найдена сумма договора')
 
-    if len(st.session_state.info['errors']) > 0:
-        container.subheader('Исправленные ошибки')
+    if len(st.session_state.info['errors']) > 0 and not st.session_state.start_btn:
+        st.sidebar.subheader('Исправленные ошибки')
         for error in st.session_state.info['errors']:
-            container.error(error['error'])
+            st.sidebar.error(error['error'])
 
     if len(st.session_state.info['template']) > 0:
-        container.subheader('Дополнительная информация')
+        st.sidebar.subheader('Дополнительная информация')
         for additional_info in st.session_state.info['template']:
-            container.markdown(additional_info, unsafe_allow_html=True)
+            st.sidebar.markdown(additional_info, unsafe_allow_html=True)
 
-    container.subheader('Пункты')
+    st.sidebar.subheader('Пункты')
     flag = True
     for index, paragraph in enumerate(st.session_state.document['paragraphs'][1:]):
         text = paragraph['paragraphHeader']['text']
@@ -181,11 +189,11 @@ if st.session_state.info:
         digit = re.search(r'(^5\.)', text)
         if digit:
             if flag:
-                container.markdown(f'[5. Права и обязанности Сторон](#5)')
+                st.sidebar.markdown(f'[5. Права и обязанности Сторон](#5)')
             flag = False
             continue
         if search:
-            container.markdown(f'[{text}](#{search.group(0).replace(".", "")})')
+            st.sidebar.markdown(f'[{text}](#{search.group(0).replace(".", "")})')
 
 if st.session_state.document:
     container_text.header("Текст Документа")
