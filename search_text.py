@@ -18,47 +18,85 @@ def wrapper(parser_response, etalon, set_price: int = 0):
 
 
 def check_points(document, etalon):
-    exclude = ['1.1.', '1.5.', '2.1.', '3.1.', '7.1.1.', '1.1.', '1.1.', ]
-    for index, paragraph in enumerate(document['paragraphs']):
-        paragraph_text = paragraph['paragraphHeader']['text'] + paragraph['paragraphBody']['text']
+    exclude = ['1.1.', '1.3.', '1.5.', '2.1.', '3.1.', '7.1.1.', '3.5.1.', '15.2.1.', '15.5.1.']
+    for index, paragraph in enumerate(document['paragraphs'][:26]):
+        paragraph_text = paragraph['paragraphBody']['text']
+        paragraph_text_from_etalon = etalon['paragraphs'][index]['paragraphBody']['text']
 
-        point_which_dont_match: [str] = []
         # regex: str = r'(\s+(?<!\.)\d+\.\d+\.(\d+\.|)\s+(.{10}))'
         # regex: str = r'((?<!\.)\d+\.\d+\.(\d+\.|)\s+)'
         # regex: str = r'((?<!п.)\s+(?<!\.)\d+\.\d+\.(\d+\.|)\s+)'
-        regex: str = r'((?<!п.)\s+(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.{10}))'
-        group: int = 1
+        regex: str = r'((?<!п.)(\s+|^)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.{10}))'  # Эволюция выражения =D
+        # regex: str = r'((?<!п.)\s+(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*)(?<!п.)\s+(?<!\.)(\d+\.\d+\.(\d+\.|)))'
+        # r'(?=((?<!п.)(\s+|)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*?)(?<!п.)\s+(?<!\.)(\d+\.\d+\.(\d+\.|))\s+))'
+        # r'(?=((?<!п.)(\s+|\S|^)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*?)(?<!п.)(\S+|\s+)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+))',
+        # r'(?=((?<!п.)(\s+|^)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*?)(?<!п.)(\S+|\s+)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+))',
+
+        # regex = re.compile(
+        #     r'(?=((?<!п.)(\s+|^)(?<!\.)(\d+\.\d+\.(\d+\.|))\s+(.*?)(?<!п.)(|\s+)(?<!\.)(\d+\.\d+\.(\d+\.|)|\.)\s+))',
+        #     re.S
+        # )
+        group: int = 0
+        point_which_dont_match = []
+
         all_points = re.findall(regex, paragraph_text)
-        all_points = [x[group] for x in all_points]
+        all_points = [x[group] for x in all_points if x[2] not in exclude]
+        all_points_form_etalon = re.findall(regex, paragraph_text_from_etalon)
+        all_points_form_etalon = [x[group] for x in all_points_form_etalon if x[2] not in exclude]
 
-        for paragraph_from_etalon in etalon['paragraphs']:
-            paragraph_text_from_etalon = paragraph_from_etalon['paragraphHeader']['text'] + \
-                                         paragraph_from_etalon['paragraphBody']['text']
+        for index1, etalon_text in enumerate(all_points_form_etalon):
+            if etalon_text not in all_points:
+                print(etalon_text)
+                print(all_points[index1])
 
-            all_points_form_etalon = re.findall(regex, paragraph_text_from_etalon)
-            all_points_form_etalon = [x[group] for x in all_points_form_etalon]
+        # all_points = regex.findall(paragraph_text, re.S)
+        # all_points = [x[2] + x[group] + x[6] for x in all_points if x[2] not in exclude]
+        # all_points_text = []
+        # for i in all_points:
+        #     if i not in all_points_text:
+        #         all_points_text.append(i)
+        # # all_points_text = list(set(all_points_text))
+        # all_points_digit = [x[2] for x in all_points if x[2] not in exclude]
+        #
+        # all_points_form_etalon = regex.findall(paragraph_text_from_etalon, re.S)
+        # all_points_form_etalon = [x[2] + x[group] + x[6] for x in all_points_form_etalon if x[2] not in exclude]
+        # all_points_form_etalon_text = []
+        # for i in all_points_form_etalon:
+        #     if i not in all_points_form_etalon_text:
+        #         all_points_form_etalon_text.append(i)
+        # all_points_form_etalon_text = list(set(all_points_form_etalon_text))
+        # all_points_form_etalon_digit = [x[2] for x in all_points_form_etalon if x[2] not in exclude]
 
-            flag = False
+        # for etalon_text in all_points_form_etalon_text:
+        #     if etalon_text not in all_points_text:
+        #         print(etalon_text)
 
-            for point_from_etalon in all_points_form_etalon:
-                if point_from_etalon in all_points:
-                    flag = True
-                    # print(all_points)
-                    # print(point_from_etalon)
-                    # print(all_points_form_etalon)
-                    break
+        # for etalon_text in all_points_form_etalon_text:
+        #     print(etalon_text)
 
-            if flag:
-                for point_from_etalon in all_points_form_etalon:
-                    if point_from_etalon not in all_points:
-                        point_which_dont_match.append(point_from_etalon)
-                # if '5.2. ' in point_which_dont_match:
-                #     print(paragraph_text)
-                break
+        # for paragraph_from_etalon in etalon['paragraphs']:
+        #     paragraph_text_from_etalon = paragraph_from_etalon['paragraphHeader']['text'] + \
+        #                                  paragraph_from_etalon['paragraphBody']['text']
+        #
+        #     all_points_form_etalon = re.findall(regex, paragraph_text_from_etalon)
+        #     all_points_form_etalon = [x[group] for x in all_points_form_etalon]
+        #
+        #     flag = False
+        #
+        #     for point_from_etalon in all_points_form_etalon:
+        #         if point_from_etalon in all_points:
+        #             flag = True
+        #             break
+        #
+        #     if flag:
+        #         for point_from_etalon in all_points_form_etalon:
+        #             if point_from_etalon not in all_points:
+        #                 point_which_dont_match.append(point_from_etalon)
+        #         break
 
-        if len(point_which_dont_match) > 0:
-            print(point_which_dont_match)
-            print('+' * 20)
+        # if len(point_which_dont_match) > 0:
+        #     print(point_which_dont_match)
+        #     print('+' * 20)
     return document
 
 
@@ -263,8 +301,10 @@ def check_fines(document, price: int = 0):
         logging.error('Не найден штраф в пункте 15.2.1')
         array_of_errors.append({'error': 'Не найден штраф в пункте 15.2.1'})
     else:
-        fine_from_doc = int(phrase.group(1).replace(' ', ''))
-
+        try:
+            fine_from_doc = int(phrase.group(1).replace(' ', ''))
+        except ValueError:
+            fine_from_doc = -10
         if fine != fine_from_doc:
             logging.error('Не правильно указан штраф в пункте 15.2.1')
             array_of_errors.append({
