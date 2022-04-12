@@ -142,7 +142,6 @@ if uploader and st.sidebar.button('Получить результат'):
 
 if st.session_state.document:
     number_input = st.sidebar.number_input(
-        value=st.session_state.price,
         label='Сумма договора, руб', min_value=0, step=1000, key='price'
     )
     button = st.sidebar.button('Задать сумму')
@@ -150,7 +149,7 @@ if st.session_state.document:
 if number_input:
     st.session_state.number_input = number_input
 
-if button and number_input:
+if button and number_input > 0:
     # col2.empty()
     container_text.empty()
     st.session_state.document = ""
@@ -158,9 +157,8 @@ if button and number_input:
     # col1.write(st.session_state.reserve_document[0]['paragraphs'][21]['paragraphBody']['text'])
     st.session_state.document, st.session_state.info = wrapper(copy.deepcopy(st.session_state.reserve_document),
                                                                copy.deepcopy(st.session_state.etalon_file),
-                                                               set_price=copy.deepcopy(st.session_state.number_input))
+                                                               set_price=st.session_state.number_input)
     st.session_state.start_btn = True
-    # print(st.session_state.info)
 
 if st.session_state.info:
     # if st.session_state.info['fine'] > 0:
@@ -183,7 +181,8 @@ if st.session_state.info:
 
     st.sidebar.subheader('Пункты')
     flag = True
-    for index, paragraph in enumerate(st.session_state.document['paragraphs'][1:]):
+    st.sidebar.markdown(f'[Текст Документа](#top_text)')
+    for index, paragraph in enumerate(st.session_state.document['paragraphs']):
         text = paragraph['paragraphHeader']['text']
         search = re.search(r'(\d+\. )', text)
         digit = re.search(r'(^5\.)', text)
@@ -196,7 +195,8 @@ if st.session_state.info:
             st.sidebar.markdown(f'[{text}](#{search.group(0).replace(".", "")})')
 
 if st.session_state.document:
-    container_text.header("Текст Документа")
+    container_text.header("Текст Документа", "top_text")
+    # container_text.markdown('## ' + "Текст Документа", unsafe_allow_html=True)
     for paragraph in st.session_state.document['paragraphs']:
         container_text.markdown('#### ' + paragraph['paragraphHeader']['text'], unsafe_allow_html=True)
         container_text.markdown(paragraph['paragraphBody']['text'], unsafe_allow_html=True)
