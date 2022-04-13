@@ -45,7 +45,7 @@ def check_points(document, etalon):
             if etalon_text[0].strip() not in [x[0].strip() for x in all_points] and etalon_text[2] not in exclude:
                 if index1 == 0:
                     print('first')
-                    regex = fr'([\S\s]*)({all_points[index1][0]})'
+                    regex = fr'({all_points[index1][0]})'
                     good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))({all_points[index1][0]})',
                                                paragraph_text_from_etalon)
                     if etalon_text[2] == all_points[index1][2]:
@@ -53,49 +53,61 @@ def check_points(document, etalon):
                         good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))({all_points[index1 + 1][0]})',
                                                    paragraph_text_from_etalon)
                         print(147)
+                        bad_paragraph = re.search(regex, paragraph_text)
+                        list_of_bad_points.append({
+                            'good': good_paragraph.group(1) + bad_paragraph.group(1),
+                            'bad': highlight_text(good_paragraph.group(1)) + '<br>' + '<br>' + highlight_text(
+                                bad_paragraph.group(1),
+                                False)
+                        })
+                        document['paragraphs'][index]['paragraphBody']['text'] = \
+                            str(document['paragraphs'][index]['paragraphBody']['text']) \
+                                .replace(bad_paragraph.group(1), good_paragraph.group(1) + bad_paragraph.group(1))
+                    else:
+                        bad_paragraph = re.search(regex, paragraph_text)
 
-                    bad_paragraph = re.search(regex, paragraph_text)
-                    list_of_bad_points.append({
-                        'good': good_paragraph.group(1),
-                        'bad': highlight_text(good_paragraph.group(1)) + '<br>' + '<br>' + highlight_text(
-                            bad_paragraph.group(1),
-                            False)
-                    })
+                        list_of_bad_points.append({
+                            'good': good_paragraph.group(1),
+                            'bad': highlight_text(good_paragraph.group(1)) + '<br>' + '<br>'
+                        })
 
-                    document['paragraphs'][index]['paragraphBody']['text'] = \
-                        str(document['paragraphs'][index]['paragraphBody']['text']) \
-                            .replace(bad_paragraph.group(0), good_paragraph.group(1) + bad_paragraph.group(0))
-                if 0 < index1 < len(all_points_form_etalon) - 1:
+                        document['paragraphs'][index]['paragraphBody']['text'] = \
+                            str(document['paragraphs'][index]['paragraphBody']['text']) \
+                                .replace(bad_paragraph.group(1), good_paragraph.group(1) + bad_paragraph.group(1))
+
+                elif 0 < index1 < len(all_points_form_etalon) - 1 and False:
                     print('all')
                     regex2 = fr'(({all_points[index1 - 1][0]})([\S\s]*)){all_points[index1][0]}'
 
-                    good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))({all_points[index1][0]})',
-                                               paragraph_text_from_etalon)
+                    good_paragraph2 = re.search(fr'(({etalon_text[0]})([\S\s]*))({all_points[index1][0]})',
+                                                paragraph_text_from_etalon)
                     if etalon_text[2] == all_points[index1][2]:
                         regex2 = fr'(({all_points[index1][0]})([\S\s]*))({all_points[index1 + 1][0]})'
-                        good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))({all_points[index1 + 1][0]})',
-                                                   paragraph_text_from_etalon)
-                    bad_paragraph = re.search(regex2, paragraph_text)
+                        good_paragraph2 = re.search(
+                            fr'(({etalon_text[0]})([\S\s]*))({all_points_form_etalon[index1 + 1][0]})',
+                            paragraph_text_from_etalon)
+                    bad_paragraph2 = re.search(regex2, paragraph_text)
+
                     if etalon_text[2] == all_points[index1][2]:
                         list_of_bad_points.append({
-                            'good': bad_paragraph.group(1) + good_paragraph.group(1),
-                            'bad': highlight_text(good_paragraph.group(1)) +
-                                   highlight_text(bad_paragraph.group(1), False)
+                            'good': bad_paragraph2.group(1) + good_paragraph2.group(1),
+                            'bad': highlight_text(good_paragraph2.group(1)) +
+                                   highlight_text(bad_paragraph2.group(1), False)
                         })
                         document['paragraphs'][index]['paragraphBody']['text'] = \
                             str(document['paragraphs'][index]['paragraphBody']['text']) \
-                                .replace(bad_paragraph.group(1), bad_paragraph.group(1) + good_paragraph.group(1))
+                                .replace(bad_paragraph2.group(1), bad_paragraph2.group(1) + good_paragraph2.group(1))
                     else:
                         list_of_bad_points.append({
-                            'good': bad_paragraph.group(1) + good_paragraph.group(1),
-                            'bad': bad_paragraph.group(1) + highlight_text(good_paragraph.group(1))
+                            'good': bad_paragraph2.group(1) + good_paragraph2.group(1),
+                            'bad': bad_paragraph2.group(1) + highlight_text(good_paragraph2.group(1))
                         })
 
                         document['paragraphs'][index]['paragraphBody']['text'] = \
                             str(document['paragraphs'][index]['paragraphBody']['text']) \
-                                .replace(bad_paragraph.group(1), bad_paragraph.group(1) + good_paragraph.group(1))
+                                .replace(bad_paragraph2.group(1), bad_paragraph2.group(1) + good_paragraph2.group(1))
 
-                if index1 == len(all_points_form_etalon) - 1:
+                elif index1 == len(all_points_form_etalon) - 1:
                     print('Last')
                     good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))$', paragraph_text_from_etalon)
                     regex3 = fr'({all_points[index1 - 1][0]})([\S\s]*)$'
