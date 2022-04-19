@@ -75,7 +75,7 @@ def check_points(document, etalon):
                             str(document['paragraphs'][index]['paragraphBody']['text']) \
                                 .replace(bad_paragraph.group(1), good_paragraph.group(1) + bad_paragraph.group(1))
 
-                elif 0 < index1 < len(all_points_form_etalon) - 1 and False:
+                if 0 < index1 < len(all_points_form_etalon) - 1:
                     print('all')
                     regex2 = fr'(({all_points[index1 - 1][0]})([\S\s]*)){all_points[index1][0]}'
 
@@ -107,7 +107,7 @@ def check_points(document, etalon):
                             str(document['paragraphs'][index]['paragraphBody']['text']) \
                                 .replace(bad_paragraph2.group(1), bad_paragraph2.group(1) + good_paragraph2.group(1))
 
-                elif index1 == len(all_points_form_etalon) - 1:
+                if index1 == len(all_points_form_etalon) - 1:
                     print('Last')
                     good_paragraph = re.search(fr'(({etalon_text[0]})([\S\s]*))$', paragraph_text_from_etalon)
                     regex3 = fr'({all_points[index1 - 1][0]})([\S\s]*)$'
